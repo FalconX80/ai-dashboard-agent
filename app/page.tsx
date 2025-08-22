@@ -210,7 +210,8 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
         groups.forEach((g) => {
           const idxs = color
             .map((v: string, i: number) => (v === g ? i : -1))
-            .filter((i) => i !== -1);
+            .filter((i: number) => i !== -1); // ← explicit type here
+
           traces.push({
             type: spec.type === "line" ? "scatter" : spec.type,
             mode: spec.type === "line" ? "lines+markers" : undefined,
@@ -249,7 +250,9 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
       <nav className="border-b border-zinc-800 sticky top-0 backdrop-blur bg-neutral-900/70 z-10">
         <div className="container flex items-center justify-between h-16">
           <div className="text-lg font-semibold">AI Dashboard Agent</div>
-          <div className="text-sm text-zinc-400">Vercel Edge • Pyodide • Plotly</div>
+          <div className="text-sm text-zinc-400">
+            Vercel Edge • Pyodide • Plotly
+          </div>
         </div>
       </nav>
 
