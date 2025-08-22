@@ -47,7 +47,6 @@ export default function Home() {
   /* -------------------------------------------------------------- */
   useEffect(() => {
     const boot = async () => {
-      /* wait until pyodide script is injected */
       await new Promise<void>((res) => {
         const check = () =>
           window.loadPyodide ? res() : setTimeout(check, 200);
@@ -114,7 +113,7 @@ preview = df.head(12).fillna("").astype(str).values.tolist()
     if (!dataRef.current || !chartRef.current) return;
     const spec = await getSpec();
 
-    /* Python summarisation inside Pyodide */
+    /* ---------------- Python summarisation in Pyodide ------------- */
     const code = `
 import pandas as pd, json
 df = globals().get("df")
@@ -157,7 +156,7 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
     await window.pyodide.runPythonAsync(code);
     const data = window.pyodide.globals.get("data").toJs();
 
-    /* Build Plotly traces */
+    /* ---------------- Build Plotly traces ------------------------- */
     const Plotly = window.Plotly;
     const layout = {
       template: "plotly_dark",
@@ -172,7 +171,6 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
     const traces: any[] = [];
     const keys = Object.keys(data);
     const x = data[spec.x ?? keys[0]];
-
     const yKey =
       spec.type === "histogram"
         ? String(spec.y ?? keys)
@@ -210,13 +208,13 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
         groups.forEach((g) => {
           const idxs = color
             .map((v: string, i: number) => (v === g ? i : -1))
-            .filter((i: number) => i !== -1); // ← explicit type here
+            .filter((i: number) => i !== -1);      // typed
 
           traces.push({
             type: spec.type === "line" ? "scatter" : spec.type,
             mode: spec.type === "line" ? "lines+markers" : undefined,
-            x: idxs.map((i) => x[i]),
-            y: idxs.map((i) => data[String(yKey)][i]),
+            x: idxs.map((i: number) => x[i]),      // typed
+            y: idxs.map((i: number) => data[String(yKey)][i]),
             name: String(g)
           });
         });
