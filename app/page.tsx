@@ -17,7 +17,6 @@ type Spec = {
 };
 
 declare global {
-  // make Pyodide & Plotly visible on window
   interface Window {
     pyodide: any;
     loadPyodide: any;
@@ -31,15 +30,15 @@ declare global {
 export default function Home() {
   /* UI state */
   const [pyLoaded, setPyLoaded] = useState(false);
-  const [fileName, setFileName] = useState<string>("");
+  const [fileName, setFileName] = useState("");
   const [columns, setColumns] = useState<Column[]>([]);
   const [prompt, setPrompt] = useState(
     "Show sales trend over time by month and region"
   );
   const [tablePreview, setTablePreview] = useState<string[][]>([]);
-  const [hint, setHint] = useState<string>("");
+  const [hint, setHint] = useState("");
 
-  /* refs for Pyodide DataFrame + Plotly div */
+  /* refs */
   const dataRef = useRef<any>(null);
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -48,13 +47,12 @@ export default function Home() {
   /* -------------------------------------------------------------- */
   useEffect(() => {
     const boot = async () => {
-      const waitPy = () =>
-        new Promise<void>((res) => {
-          const check = () =>
-            window.loadPyodide ? res() : setTimeout(check, 200);
-          check();
-        });
-      await waitPy();
+      /* wait until pyodide script is injected */
+      await new Promise<void>((res) => {
+        const check = () =>
+          window.loadPyodide ? res() : setTimeout(check, 200);
+        check();
+      });
       const pyodide = await window.loadPyodide({
         indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/"
       });
@@ -116,7 +114,7 @@ preview = df.head(12).fillna("").astype(str).values.tolist()
     if (!dataRef.current || !chartRef.current) return;
     const spec = await getSpec();
 
-    /* Run summarized-data Python in Pyodide */
+    /* Python summarisation inside Pyodide */
     const code = `
 import pandas as pd, json
 df = globals().get("df")
@@ -132,32 +130,26 @@ def summarize(df, x, y, color, agg, typ):
         num_cols = [c for c in df.columns if str(df[c].dtype).startswith(("int","float"))]
         y = num_cols[0] if num_cols else None
     if y and agg != "count" and typ not in ["histogram", "pie", "box"]:
-        if color and x:
-            g = df.groupby([x, color])[y]
-        elif x:
-            g = df.groupby(x)[y]
-        else:
-            g = df[y]
-        if agg == "sum": s = g.sum()
-        elif agg == "mean": s = g.mean()
-        elif agg == "median": s = g.median()
-        elif agg == "max": s = g.max()
-        elif agg == "min": s = g.min()
-        else: s = g.size()
-        s = s.reset_index()
+        if color and x: g = df.groupby([x, color])[y]
+        elif x:         g = df.groupby(x)[y]
+        else:           g = df[y]
+        s = (
+            g.sum()     if agg=="sum"   else
+            g.mean()    if agg=="mean"  else
+            g.median()  if agg=="median"else
+            g.max()     if agg=="max"   else
+            g.min()     if agg=="min"   else
+            g.size()
+        ).reset_index()
         return s
     elif typ == "histogram":
         return df[[y]].dropna()
     elif typ == "box":
-        cols = [c for c in [x, y] if c]
-        return df[cols] if cols else df
+        cols = [c for c in [x, y] if c]; return df[cols] if cols else df
     else:
-        if color and x:
-            return df.groupby([x, color]).size().reset_index(name="count")
-        elif x:
-            return df.groupby(x).size().reset_index(name="count")
-        else:
-            return df
+        if color and x: return df.groupby([x, color]).size().reset_index(name="count")
+        elif x:        return df.groupby(x).size().reset_index(name="count")
+        else:          return df
 
 sdf = summarize(df, x, y, color, agg, typ)
 data = {c: sdf[c].tolist() for c in sdf.columns}
@@ -180,35 +172,36 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
     const traces: any[] = [];
     const keys = Object.keys(data);
     const x = data[spec.x ?? keys[0]];
+
     const yKey =
       spec.type === "histogram"
-        ? spec.y ?? keys
+        ? String(spec.y ?? keys)
         : spec.type === "pie"
-        ? spec.y ?? "count"
+        ? String(spec.y ?? "count")
         : spec.agg === "count"
         ? "count"
-        : spec.y ?? keys[1];
+        : String(spec.y ?? keys[1]);
 
     const color = spec.color && data[spec.color] ? data[spec.color] : undefined;
 
     if (spec.type === "histogram") {
       traces.push({
         type: "histogram",
-        x: data[yKey],
+        x: data[String(yKey)],
         marker: { color: "#60a5fa" }
       });
     } else if (spec.type === "pie") {
       traces.push({
         type: "pie",
         labels: x,
-        values: data[yKey],
+        values: data[String(yKey)],
         hole: 0.4
       });
     } else if (spec.type === "box") {
       traces.push({
         type: "box",
         x,
-        y: data[yKey],
+        y: data[String(yKey)],
         marker: { color: "#a78bfa" }
       });
     } else {
@@ -222,7 +215,7 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
             type: spec.type === "line" ? "scatter" : spec.type,
             mode: spec.type === "line" ? "lines+markers" : undefined,
             x: idxs.map((i) => x[i]),
-            y: idxs.map((i) => data[yKey][i]),
+            y: idxs.map((i) => data[String(yKey)][i]),
             name: String(g)
           });
         });
@@ -231,7 +224,7 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
           type: spec.type === "line" ? "scatter" : spec.type,
           mode: spec.type === "line" ? "lines+markers" : undefined,
           x,
-          y: data[yKey]
+          y: data[String(yKey)]
         });
       }
     }
@@ -256,9 +249,7 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
       <nav className="border-b border-zinc-800 sticky top-0 backdrop-blur bg-neutral-900/70 z-10">
         <div className="container flex items-center justify-between h-16">
           <div className="text-lg font-semibold">AI Dashboard Agent</div>
-          <div className="text-sm text-zinc-400">
-            Vercel Edge • Pyodide • Plotly
-          </div>
+          <div className="text-sm text-zinc-400">Vercel Edge • Pyodide • Plotly</div>
         </div>
       </nav>
 
@@ -268,9 +259,7 @@ data = {c: sdf[c].tolist() for c in sdf.columns}
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2 bg-neutral-950 border border-zinc-800 rounded-lg p-4">
             <div className="flex items-center justify-between gap-3">
-              <label className="text-sm text-zinc-300">
-                Upload CSV or Excel
-              </label>
+              <label className="text-sm text-zinc-300">Upload CSV or Excel</label>
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls"
