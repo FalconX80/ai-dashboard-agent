@@ -55,8 +55,8 @@ export default function Home() {
       const pyodide = await window.loadPyodide({
         indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/"
       });
-      - await pyodide.loadPackage(["pandas", "openpyxl"]);
-      + await pyodide.loadPackage(["pandas"]);
+      
+      await pyodide.loadPackage(["pandas"]);
 
       window.pyodide = pyodide;
       setPyLoaded(true);
